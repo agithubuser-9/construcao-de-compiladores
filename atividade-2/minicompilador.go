@@ -9,6 +9,12 @@ import (
 	"unicode"
 )
 
+/*
+Alunos:
+Cássio Andrêzza de Almeida
+Yuri Gabriel Da Silva
+*/
+
 func main() {
 	if len(os.Args) < 2 {
 		fmt.Println("Por favor, forneça um arquivo de texto como argumento.")
