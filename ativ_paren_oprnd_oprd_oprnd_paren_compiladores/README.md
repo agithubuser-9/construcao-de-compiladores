@@ -1,3 +1,9 @@
+## Execução
+
+```sh
+# Para executar com exemplos corretos
 go run main.go correct_examples
-ou
+
+# Para executar com exemplos incorretos
 go run main.go incorrect_examples
+```
