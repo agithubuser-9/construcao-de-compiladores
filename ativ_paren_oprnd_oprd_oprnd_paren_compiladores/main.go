@@ -5,10 +5,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
-
 )
-
-
 
 // Definição dos lexemas aceitos
 var lexemas = map[string]string{
