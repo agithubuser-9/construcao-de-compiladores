@@ -1,11 +1,11 @@
-## Execução
+## Execução do compilador
 
 ```sh
-go run programa.go correct_examples
+go run programa.go
 ```
 
-ou
+## Execução dos testes
 
 ```sh
-go run programa.go incorrect_examples
+go test -v
 ```
