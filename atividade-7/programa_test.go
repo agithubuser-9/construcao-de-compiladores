@@ -23,22 +23,22 @@ func TestExpressionsEC2(t *testing.T) {
 		{"(10+10)+(10+10)", 40},
 		{"10", 10},
 		// Casos adicionais para demonstrar a análise sem parênteses excessivos.
-		{"7+5*3", 22},    // 5*3=15, 7+15=22
-		{"7+5+3", 15},    // (7+5)+3=15
-		{"10-8-2", 0},    // (10-8)-2=0
-		{"10-8*2", -6},   // 8*2=16, 10-16 = -6
+		{"7+5*3", 22},  // 5*3=15, 7+15=22
+		{"7+5+3", 15},  // (7+5)+3=15
+		{"10-8-2", 0},  // (10-8)-2=0
+		{"10-8*2", -6}, // 8*2=16, 10-16 = -6
 	}
 
 	for _, tc := range tests {
 		input := strings.ReplaceAll(tc.input, " ", "")
-		lexer := &Lexer{text: input}
-		parser := NewParser(lexer)
-		expr, err := parser.Parse()
+		lexer := &AnalisadorLexico{texto: input}
+		parser := NovoParser(lexer)
+		expressao, err := parser.Analisar()
 		if err != nil {
 			t.Errorf("Erro ao analisar '%s': %v", tc.input, err)
 			continue
 		}
-		result, err := Evaluate(expr)
+		result, err := Avaliar(expressao)
 		if err != nil {
 			t.Errorf("Erro ao avaliar '%s': %v", tc.input, err)
 			continue
@@ -48,4 +48,3 @@ func TestExpressionsEC2(t *testing.T) {
 		}
 	}
 }
-

@@ -1,245 +1,240 @@
-// programa.go
 package main
 
 import (
 	"fmt"
 	"strconv"
-	"strings"
 	"unicode"
 )
 
 // Definição dos tipos de token.
-type TokenType string
+type TipoToken string
 
 const (
-	TOKEN_INT     TokenType = "INT"
-	TOKEN_PLUS    TokenType = "+"
-	TOKEN_MINUS   TokenType = "-"
-	TOKEN_MUL     TokenType = "*"
-	TOKEN_DIV     TokenType = "/"
-	TOKEN_LPAREN  TokenType = "("
-	TOKEN_RPAREN  TokenType = ")"
-	TOKEN_EOF     TokenType = "EOF"
-	TOKEN_ILLEGAL TokenType = "ILLEGAL"
+	TOKEN_INTEIRO  TipoToken = "INT"
+	TOKEN_SOMA     TipoToken = "+"
+	TOKEN_SUB      TipoToken = "-"
+	TOKEN_MULT     TipoToken = "*"
+	TOKEN_DIV      TipoToken = "/"
+	TOKEN_ABREPAR  TipoToken = "("
+	TOKEN_FECHAPAR TipoToken = ")"
+	TOKEN_FIM      TipoToken = "EOF"
+	TOKEN_INVALIDO TipoToken = "ILLEGAL"
 )
 
-// Estrutura que representa um token.
+// Estrutura dos tokens.
 type Token struct {
-	Type  TokenType
-	Value string
+	Tipo  TipoToken
+	Valor string
 }
 
 // Lexer para análise léxica.
-type Lexer struct {
-	text string
-	pos  int
+type AnalisadorLexico struct {
+	texto string
+	pos   int
 }
 
-func (l *Lexer) getNextToken() Token {
-	// Ignora espaços.
-	for l.pos < len(l.text) && unicode.IsSpace(rune(l.text[l.pos])) {
-		l.pos++
+func (a *AnalisadorLexico) proximoToken() Token {
+	//Remove os espaços da empressão de entrada (foi mantido pra centralizar a 'limpeza' da entrada no Lexer)
+	for a.pos < len(a.texto) && unicode.IsSpace(rune(a.texto[a.pos])) {
+		a.pos++
 	}
-	if l.pos >= len(l.text) {
-		return Token{Type: TOKEN_EOF, Value: ""}
+	if a.pos >= len(a.texto) {
+		return Token{Tipo: TOKEN_FIM, Valor: ""}
 	}
-	ch := l.text[l.pos]
-	// Reconhecimento de números.
-	if unicode.IsDigit(rune(ch)) {
-		start := l.pos
-		for l.pos < len(l.text) && unicode.IsDigit(rune(l.text[l.pos])) {
-			l.pos++
+	caractere := a.texto[a.pos]
+	if unicode.IsDigit(rune(caractere)) {
+		inicio := a.pos
+		for a.pos < len(a.texto) && unicode.IsDigit(rune(a.texto[a.pos])) {
+			a.pos++
 		}
-		return Token{Type: TOKEN_INT, Value: l.text[start:l.pos]}
+		return Token{Tipo: TOKEN_INTEIRO, Valor: a.texto[inicio:a.pos]}
 	}
-	// Reconhecimento de símbolos.
-	switch ch {
+	switch caractere {
 	case '+':
-		l.pos++
-		return Token{Type: TOKEN_PLUS, Value: string(ch)}
+		a.pos++
+		return Token{Tipo: TOKEN_SOMA, Valor: string(caractere)}
 	case '-':
-		l.pos++
-		return Token{Type: TOKEN_MINUS, Value: string(ch)}
+		a.pos++
+		return Token{Tipo: TOKEN_SUB, Valor: string(caractere)}
 	case '*':
-		l.pos++
-		return Token{Type: TOKEN_MUL, Value: string(ch)}
+		a.pos++
+		return Token{Tipo: TOKEN_MULT, Valor: string(caractere)}
 	case '/':
-		l.pos++
-		return Token{Type: TOKEN_DIV, Value: string(ch)}
+		a.pos++
+		return Token{Tipo: TOKEN_DIV, Valor: string(caractere)}
 	case '(':
-		l.pos++
-		return Token{Type: TOKEN_LPAREN, Value: string(ch)}
+		a.pos++
+		return Token{Tipo: TOKEN_ABREPAR, Valor: string(caractere)}
 	case ')':
-		l.pos++
-		return Token{Type: TOKEN_RPAREN, Value: string(ch)}
+		a.pos++
+		return Token{Tipo: TOKEN_FECHAPAR, Valor: string(caractere)}
 	default:
-		l.pos++
-		return Token{Type: TOKEN_ILLEGAL, Value: string(ch)}
+		a.pos++
+		return Token{Tipo: TOKEN_INVALIDO, Valor: string(caractere)}
 	}
 }
 
 // Interface para nós da árvore de sintaxe abstrata.
-type Expr interface{}
+type Expressao interface{}
 
 // Nó para constante inteira.
-type Const struct {
-	Value int
+type Constante struct {
+	Valor int
 }
 
 // Nó para operação binária.
-type BinOp struct {
-	Op    string
-	Left  Expr
-	Right Expr
+type OperacaoBinaria struct {
+	Operador string
+	Esquerda Expressao
+	Direita  Expressao
 }
 
 // Parser para a gramática EC2.
-type Parser struct {
-	lexer        *Lexer
-	currentToken Token
+type AnalisadorSintatico struct {
+	lex        *AnalisadorLexico
+	tokenAtual Token
 }
 
-func NewParser(lexer *Lexer) *Parser {
-	p := &Parser{lexer: lexer}
-	p.currentToken = p.lexer.getNextToken()
+// mantem o token atual salvo e só chama o proximoToken quando quer realmente avançar
+// resume o uso de uma função 'olhaProximoToken'
+func NovoParser(lex *AnalisadorLexico) *AnalisadorSintatico {
+	p := &AnalisadorSintatico{lex: lex}
+	p.tokenAtual = p.lex.proximoToken()
 	return p
 }
 
-// Função auxiliar para consumir o token esperado.
-func (p *Parser) eat(tokenType TokenType) error {
-	if p.currentToken.Type == tokenType {
-		p.currentToken = p.lexer.getNextToken()
+func (p *AnalisadorSintatico) avancaToken(tipoEsperado TipoToken) error {
+	if p.tokenAtual.Tipo == tipoEsperado {
+		p.tokenAtual = p.lex.proximoToken()
 		return nil
 	}
-	return fmt.Errorf("esperado token %s, mas encontrou %s", tokenType, p.currentToken.Type)
+	return fmt.Errorf("esperado token %s, mas encontrou %s", tipoEsperado, p.tokenAtual.Tipo)
 }
 
 // <prim> ::= <num> | '(' <exp_a> ')'
-func (p *Parser) parsePrim() (Expr, error) {
-	token := p.currentToken
-	if token.Type == TOKEN_INT {
-		value, err := strconv.Atoi(token.Value)
+func (p *AnalisadorSintatico) analisarPrimaria() (Expressao, error) {
+	token := p.tokenAtual
+	if token.Tipo == TOKEN_INTEIRO {
+		valor, err := strconv.Atoi(token.Valor)
 		if err != nil {
 			return nil, err
 		}
-		p.eat(TOKEN_INT)
-		return &Const{Value: value}, nil
-	} else if token.Type == TOKEN_LPAREN {
-		// Consome '(' e processa uma expressão aditiva.
-		p.eat(TOKEN_LPAREN)
-		expr, err := p.parseExpA()
+		p.avancaToken(TOKEN_INTEIRO)
+		return &Constante{Valor: valor}, nil
+	} else if token.Tipo == TOKEN_ABREPAR {
+		p.avancaToken(TOKEN_ABREPAR)
+		expr, err := p.analisarExpA()
 		if err != nil {
 			return nil, err
 		}
-		if err := p.eat(TOKEN_RPAREN); err != nil {
+		if err := p.avancaToken(TOKEN_FECHAPAR); err != nil {
 			return nil, err
 		}
 		return expr, nil
 	}
-	return nil, fmt.Errorf("token inesperado: %s", token.Value)
+	return nil, fmt.Errorf("token inesperado: %s", token.Valor)
 }
 
 // <exp_m> ::= <prim> (( '*' | '/' ) <prim>)*
-func (p *Parser) parseExpM() (Expr, error) {
-	left, err := p.parsePrim()
+func (p *AnalisadorSintatico) analisarExpM() (Expressao, error) {
+	esquerda, err := p.analisarPrimaria()
 	if err != nil {
 		return nil, err
 	}
-	for p.currentToken.Type == TOKEN_MUL || p.currentToken.Type == TOKEN_DIV {
-		op := p.currentToken.Value
-		p.eat(p.currentToken.Type)
-		right, err := p.parsePrim()
+	for p.tokenAtual.Tipo == TOKEN_MULT || p.tokenAtual.Tipo == TOKEN_DIV {
+		operador := p.tokenAtual.Valor
+		p.avancaToken(p.tokenAtual.Tipo)
+		direita, err := p.analisarPrimaria()
 		if err != nil {
 			return nil, err
 		}
-		left = &BinOp{Op: op, Left: left, Right: right}
+		esquerda = &OperacaoBinaria{Operador: operador, Esquerda: esquerda, Direita: direita}
 	}
-	return left, nil
+	return esquerda, nil
 }
 
 // <exp_a> ::= <exp_m> (( '+' | '-' ) <exp_m>)*
-func (p *Parser) parseExpA() (Expr, error) {
-	left, err := p.parseExpM()
+func (p *AnalisadorSintatico) analisarExpA() (Expressao, error) {
+	esquerda, err := p.analisarExpM()
 	if err != nil {
 		return nil, err
 	}
-	for p.currentToken.Type == TOKEN_PLUS || p.currentToken.Type == TOKEN_MINUS {
-		op := p.currentToken.Value
-		p.eat(p.currentToken.Type)
-		right, err := p.parseExpM()
+	for p.tokenAtual.Tipo == TOKEN_SOMA || p.tokenAtual.Tipo == TOKEN_SUB {
+		operador := p.tokenAtual.Valor
+		p.avancaToken(p.tokenAtual.Tipo)
+		direita, err := p.analisarExpM()
 		if err != nil {
 			return nil, err
 		}
-		left = &BinOp{Op: op, Left: left, Right: right}
+		esquerda = &OperacaoBinaria{Operador: operador, Esquerda: esquerda, Direita: direita}
 	}
-	return left, nil
+	return esquerda, nil
 }
 
 // Inicia a análise sintática a partir de exp_a.
-func (p *Parser) Parse() (Expr, error) {
-	return p.parseExpA()
+func (p *AnalisadorSintatico) Analisar() (Expressao, error) {
+	return p.analisarExpA()
 }
 
 // Função que avalia a árvore sintática.
-func Evaluate(expr Expr) (int, error) {
+func Avaliar(expr Expressao) (int, error) {
 	switch e := expr.(type) {
-	case *Const:
-		return e.Value, nil
-	case *BinOp:
-		left, err := Evaluate(e.Left)
+	case *Constante:
+		return e.Valor, nil
+	case *OperacaoBinaria:
+		esq, err := Avaliar(e.Esquerda)
 		if err != nil {
 			return 0, err
 		}
-		right, err := Evaluate(e.Right)
+		dir, err := Avaliar(e.Direita)
 		if err != nil {
 			return 0, err
 		}
-		switch e.Op {
+		switch e.Operador {
 		case "+":
-			return left + right, nil
+			return esq + dir, nil
 		case "-":
-			return left - right, nil
+			return esq - dir, nil
 		case "*":
-			return left * right, nil
+			return esq * dir, nil
 		case "/":
-			if right == 0 {
+			if dir == 0 {
 				return 0, fmt.Errorf("divisão por zero")
 			}
-			return left / right, nil
+			return esq / dir, nil
 		default:
-			return 0, fmt.Errorf("operador desconhecido: %s", e.Op)
+			return 0, fmt.Errorf("operador desconhecido: %s", e.Operador)
 		}
 	}
 	return 0, fmt.Errorf("expressão inválida")
 }
 
 // Função para imprimir a árvore sintática (em formato parenthesizado).
-func PrintExpr(expr Expr) string {
+func ImprimirExpressao(expr Expressao) string {
 	switch e := expr.(type) {
-	case *Const:
-		return fmt.Sprintf("%d", e.Value)
-	case *BinOp:
-		return fmt.Sprintf("(%s %s %s)", PrintExpr(e.Left), e.Op, PrintExpr(e.Right))
+	case *Constante:
+		return fmt.Sprintf("%d", e.Valor)
+	case *OperacaoBinaria:
+		return fmt.Sprintf("(%s %s %s)", ImprimirExpressao(e.Esquerda), e.Operador, ImprimirExpressao(e.Direita))
 	}
 	return ""
 }
 
 func main() {
-	// Exemplo de uso.
-	input := "7+5*3-2"
-	lexer := &Lexer{text: strings.ReplaceAll(input, " ", "")}
-	parser := NewParser(lexer)
-	expr, err := parser.Parse()
+	entrada := "25*(1)+65/(30+1)"
+	//analisadorLexico := &AnalisadorLexico{texto: strings.ReplaceAll(entrada, " ", "")}
+	analisadorLexico := &AnalisadorLexico{texto: entrada} //chamada sem limpeza de espaços para centralizar essa logica no lexer
+	parser := NovoParser(analisadorLexico)
+	expressao, err := parser.Analisar()
 	if err != nil {
 		fmt.Println("Erro no parser:", err)
 		return
 	}
-	fmt.Println("Árvore sintática:", PrintExpr(expr))
-	result, err := Evaluate(expr)
+	fmt.Println("Árvore sintática:", ImprimirExpressao(expressao))
+	resultado, err := Avaliar(expressao)
 	if err != nil {
 		fmt.Println("Erro na avaliação:", err)
 		return
 	}
-	fmt.Println("Resultado:", result)
+	fmt.Println("Resultado:", resultado)
 }
-
