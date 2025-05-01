@@ -1,7 +1,7 @@
 package parser
 
 import (
-	"atividade_7_Revisada/lexer"
+	"atividade_9/lexer"
 	"fmt"
 	"strconv"
 )

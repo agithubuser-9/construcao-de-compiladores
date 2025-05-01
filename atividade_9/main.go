@@ -1,14 +1,12 @@
 package main
 
 import (
-	"atividade_7_Revisada/avaliador"
-	"atividade_7_Revisada/geradorAssembly" // certifique-se de que o nome está certo
-	"atividade_7_Revisada/lexer"
-	"atividade_7_Revisada/parser"
+
+	// certifique-se de que o nome está certo
+
+	"atividade_9/lexer"
+	"atividade_9/parser"
 	"fmt"
-	"os"
-	"path/filepath"
-	"strings"
 )
 
 // Alunos:
@@ -16,6 +14,42 @@ import (
 // Cássio Andrêzza de Almeida
 
 func main() {
+	// Exemplo de entrada para testar
+	entrada := `{
+		a = 1;
+		b = 2;
+		c = 3;
+		delta = b * b - 4 * a * c;
+		if delta < 0 {
+			delta = 0 - delta;
+		} else {
+			delta = delta;
+		}
+		return delta;
+	}`
+
+	// Cria o analisador léxico
+	lex := &lexer.AnalisadorLexico{Texto: entrada}
+
+	// Cria o parser
+	sintatico := parser.NovoParser(lex)
+
+	// Realiza a análise sintática
+	programa, err := sintatico.Analisar()
+	if err != nil {
+		// Em caso de erro na análise sintática
+		fmt.Println("Erro na análise sintática:", err)
+		return
+	}
+
+	// Em caso de sucesso, imprime a árvore sintática
+
+	fmt.Println("Árvore Sintática do Programa:")
+	imprimirPrograma(programa)
+
+}
+
+/*
 	testesDir := "testes"
 	resultadosDir := "resultados"
 
@@ -91,4 +125,4 @@ func main() {
 	if err != nil {
 		fmt.Println("Erro geral:", err)
 	}
-}
+*/

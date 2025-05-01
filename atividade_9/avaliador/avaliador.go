@@ -1,7 +1,7 @@
 package avaliador
 
 import (
-	"atividade_7_Revisada/parser"
+	"atividade_9/parser"
 	"fmt"
 )
 
