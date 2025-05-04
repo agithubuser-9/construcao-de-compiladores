@@ -13,6 +13,62 @@ type ParserAtt struct {
 	Variaveis map[string]int // Tabela de variáveis com seus valores
 }
 
+// Programa representa um conjunto de declarações e comandos
+type Programa struct {
+	Declaracoes []Declaracao
+	Comandos    []Comando
+}
+
+// Declaracao representa uma variável inicializada
+type Declaracao struct {
+	Nome string
+	Expr Expressao
+}
+
+// Comando representa uma instrução (atribuição, if, while, retorno, etc.)
+type Comando interface{}
+
+// Expressao representa qualquer valor computável (número, variável, operação)
+type Expressao interface{}
+
+// ===== EXPRESSÕES =====
+type Constante struct {
+	Valor int
+}
+
+type Variavel struct {
+	Nome string
+}
+
+type OperacaoBinaria struct {
+	Operador          string
+	Esquerda, Direita Expressao
+}
+
+// ===== COMANDOS =====
+type Atribuicao struct {
+	Nome string
+	Expr Expressao
+}
+
+type Se struct {
+	Condicao     Expressao
+	Entao, Senao Comando // Senao pode ser nil
+}
+
+type Enquanto struct {
+	Condicao Expressao
+	Corpo    Comando
+}
+
+type Retorno struct {
+	Expr Expressao
+}
+
+type Sequencia struct {
+	Comandos []Comando
+}
+
 func (p *ParserAtt) Avancar() {
 	p.Atual = p.Lexer.ProximoToken()
 }
@@ -30,112 +86,131 @@ func (p *ParserAtt) ErroSintatico(esperado lexer.TipoToken) {
 	os.Exit(1) // interrompe o programa imediatamente
 }
 
-func (p *ParserAtt) Programa() {
+func (p *ParserAtt) Programa() *Programa {
+	var declaracoes []Declaracao
+
+	// Processa declarações do tipo: nome = expressao;
 	for p.Atual.Tipo == lexer.TOKEN_IDENT {
-		p.Declaracao()
+		decl := p.ParseDeclaracao()
+		declaracoes = append(declaracoes, decl)
 	}
 
 	p.Esperar(lexer.TOKEN_ABRECHAVE)
 
-	for p.Atual.Tipo != lexer.TOKEN_RETURN && p.Atual.Tipo != lexer.TOKEN_FECHCHAVE {
-		p.Comando()
-	}
-
-	if p.Atual.Tipo == lexer.TOKEN_RETURN {
-		p.ReturnComando()
+	var comandos []Comando
+	for p.Atual.Tipo != lexer.TOKEN_FECHCHAVE && p.Atual.Tipo != lexer.TOKEN_FIM {
+		comando := p.ParseComando()
+		comandos = append(comandos, comando)
 	}
 
 	p.Esperar(lexer.TOKEN_FECHCHAVE)
+
+	return &Programa{
+		Declaracoes: declaracoes,
+		Comandos:    comandos,
+	}
 }
 
 // --------------------- DECLARAÇÕES ---------------------
 
 func (p *ParserAtt) Declaracoes() {
 	for p.Atual.Tipo == lexer.TOKEN_IDENT {
-		p.Declaracao()
+		p.ParseDeclaracao()
 	}
 }
 
-func (p *ParserAtt) Declaracao() {
+func (p *ParserAtt) ParseDeclaracao() Declaracao {
 	nomeVar := p.Atual.Valor
 	p.Esperar(lexer.TOKEN_IDENT)
 	p.Esperar(lexer.TOKEN_ATRIBUICAO)
-	valor := p.Expressoes()
-	p.Variaveis[nomeVar] = valor
+	valor := p.ParseExpressao()
 	p.Esperar(lexer.TOKEN_PONTOVIRG)
+
+	return Declaracao{
+		Nome: nomeVar,
+		Expr: valor,
+	}
 }
 
 // --------------------- COMANDOS ---------------------
 
 func (p *ParserAtt) Comandos() {
 	for p.Atual.Tipo == lexer.TOKEN_IF || p.Atual.Tipo == lexer.TOKEN_WHILE || p.Atual.Tipo == lexer.TOKEN_IDENT || p.Atual.Tipo == lexer.TOKEN_RETURN {
-		p.Comando()
+		p.ParseComando()
 	}
 }
 
-func (p *ParserAtt) Comando() {
+func (p *ParserAtt) ParseComando() Comando {
 	switch p.Atual.Tipo {
 	case lexer.TOKEN_IF:
-		p.IfComando()
+		return p.ParseIf()
 	case lexer.TOKEN_WHILE:
-		p.WhileComando()
-	case lexer.TOKEN_IDENT:
-		p.AtribuicaoComando()
+		return p.ParseWhile()
 	case lexer.TOKEN_RETURN:
-		p.ReturnComando()
+		return p.ParseReturn()
+	case lexer.TOKEN_IDENT:
+		return p.ParseAtribuicao()
 	case lexer.TOKEN_ABRECHAVE:
-		p.Esperar(lexer.TOKEN_ABRECHAVE)
-		p.Comandos()
-		p.Esperar(lexer.TOKEN_FECHCHAVE)
+		return p.ParseBloco()
+	default:
+		p.ErroSintatico("comando válido")
+		return nil
 	}
 }
 
-func (p *ParserAtt) AtribuicaoComando() {
-	nomeVar := p.Atual.Valor
+func (p *ParserAtt) ParseAtribuicao() Comando {
+	nome := p.Atual.Valor
 	p.Esperar(lexer.TOKEN_IDENT)
 	p.Esperar(lexer.TOKEN_ATRIBUICAO)
-	valor := p.Expressoes()
-	p.Variaveis[nomeVar] = valor
+	expr := p.ParseExpressao()
 	p.Esperar(lexer.TOKEN_PONTOVIRG)
+
+	return &Atribuicao{
+		Nome: nome,
+		Expr: expr,
+	}
 }
 
-func (p *ParserAtt) ReturnComando() {
-
-	//fmt.Println(">>> ENTROU EM EXPRESSION COM TOKEN:", p.Atual.Tipo, "VALOR:", p.Atual.Valor)
-
+func (p *ParserAtt) ParseReturn() Comando {
 	p.Esperar(lexer.TOKEN_RETURN)
-	valor := p.Expressoes()
-	fmt.Println(valor)
+	expr := p.ParseExpressao()
 	p.Esperar(lexer.TOKEN_PONTOVIRG)
 
+	return &Retorno{Expr: expr}
 }
 
-func (p *ParserAtt) IfComando() {
+func (p *ParserAtt) ParseIf() Comando {
 	p.Esperar(lexer.TOKEN_IF)
 	p.Esperar(lexer.TOKEN_ABREPAR)
-	condicao := p.Expressoes()
+	cond := p.ParseExpressao()
 	p.Esperar(lexer.TOKEN_FECHAPAR)
 
-	if condicao != 0 {
-		// Executa o bloco do 'if'
-		p.Comando()
-	} else {
-		// Pula o bloco do 'if'
-		p.PularComando()
-	}
+	entao := p.ParseComando()
 
-	// Verifica se tem 'else'
+	var senao Comando = nil
 	if p.Atual.Tipo == lexer.TOKEN_ELSE {
 		p.Esperar(lexer.TOKEN_ELSE)
-
-		if condicao == 0 {
-			// Executa o bloco do 'else' se a condição era falsa
-			p.Comando()
-		} else {
-			// Pula o bloco do 'else' se a condição era verdadeira
-			p.PularComando()
-		}
+		senao = p.ParseComando()
 	}
+
+	return &Se{
+		Condicao: cond,
+		Entao:    entao,
+		Senao:    senao,
+	}
+}
+
+func (p *ParserAtt) ParseBloco() Comando {
+	p.Esperar(lexer.TOKEN_ABRECHAVE)
+
+	var comandos []Comando
+	for p.Atual.Tipo != lexer.TOKEN_FECHCHAVE && p.Atual.Tipo != lexer.TOKEN_FIM {
+		comandos = append(comandos, p.ParseComando())
+	}
+
+	p.Esperar(lexer.TOKEN_FECHCHAVE)
+
+	return &Sequencia{Comandos: comandos}
 }
 
 func (p *ParserAtt) PularComando() {
@@ -150,151 +225,98 @@ func (p *ParserAtt) PularComando() {
 	}
 }
 
-func (p *ParserAtt) WhileComando() {
-	// Marca a posição do token 'while' para reiniciar o bloco completo do laço
-	inicioWhile := p.Lexer.Pos - len(p.Atual.Valor)
-
-	// Consome o 'while' e a condição
+func (p *ParserAtt) ParseWhile() Comando {
 	p.Esperar(lexer.TOKEN_WHILE)
 	p.Esperar(lexer.TOKEN_ABREPAR)
-	cond := p.Expressoes()
+	cond := p.ParseExpressao()
 	p.Esperar(lexer.TOKEN_FECHAPAR)
 
-	// Aguarda e entra no bloco
-	p.Esperar(lexer.TOKEN_ABRECHAVE)
+	corpo := p.ParseComando()
 
-	for cond != 0 {
-		// Executa o corpo do laço
-		p.Comandos()
-
-		// Reposiciona para o início do laço para nova avaliação
-		p.Lexer.Pos = inicioWhile
-		p.Avancar() // sincroniza p.Atual com novo Pos
-
-		// Reconsome toda a estrutura: while (cond) {
-		p.Esperar(lexer.TOKEN_WHILE)
-		p.Esperar(lexer.TOKEN_ABREPAR)
-		cond = p.Expressoes()
-		p.Esperar(lexer.TOKEN_FECHAPAR)
-		p.Esperar(lexer.TOKEN_ABRECHAVE)
-	}
-
-	// Saiu do laço: pula o corpo restante até encontrar a chave de fechamento
-	abertas := 1
-	for abertas > 0 && p.Atual.Tipo != lexer.TOKEN_FIM {
-		if p.Atual.Tipo == lexer.TOKEN_ABRECHAVE {
-			abertas++
-		} else if p.Atual.Tipo == lexer.TOKEN_FECHCHAVE {
-			abertas--
-		}
-		p.Avancar()
+	return &Enquanto{
+		Condicao: cond,
+		Corpo:    corpo,
 	}
 }
 
 // --------------------- EXPRESSÕES ---------------------
 
-func (p *ParserAtt) Expressoes() int {
-
-	//fmt.Println(">>> ENTROU EM EXPRESSION COM TOKEN:", p.Atual.Tipo, "VALOR:", p.Atual.Valor)
-
-	left := p.ExpAritmetica()
+func (p *ParserAtt) ParseExpressao() Expressao {
+	left := p.ParseExpAritmetica()
 
 	for {
-		//fmt.Println("TOKEN NO INÍCIO DO LOOP:", p.Atual.Tipo, "VALOR:", p.Atual.Valor)
 		switch p.Atual.Tipo {
 		case lexer.TOKEN_MENORQ, lexer.TOKEN_MAIORQ, lexer.TOKEN_IGUALDADE, lexer.TOKEN_MENORIGUAL, lexer.TOKEN_MAIORIGUAL:
-			op := p.Atual.Tipo
+			op := p.Atual.Valor
 			p.Avancar()
-			right := p.ExpAritmetica()
-			//fmt.Println("TOKEN ATUAL:", p.Atual.Tipo, "VALOR:", p.Atual.Valor)
-
-			switch op {
-			case lexer.TOKEN_MENORQ:
-				if left < right {
-					left = 1
-				} else {
-					left = 0
-				}
-			case lexer.TOKEN_MAIORQ:
-				if left > right {
-					left = 1
-				} else {
-					left = 0
-				}
-			case lexer.TOKEN_IGUALDADE:
-				if left == right {
-					left = 1
-				} else {
-					left = 0
-				}
-			case lexer.TOKEN_MENORIGUAL:
-				if left <= right {
-					left = 1
-				} else {
-					left = 0
-				}
-			case lexer.TOKEN_MAIORIGUAL:
-				if left >= right {
-					left = 1
-				} else {
-					left = 0
-				}
+			right := p.ParseExpAritmetica()
+			left = &OperacaoBinaria{
+				Operador: op,
+				Esquerda: left,
+				Direita:  right,
 			}
 		default:
 			return left
 		}
-
 	}
 }
 
-func (p *ParserAtt) ExpAritmetica() int {
-	result := p.Termo()
+func (p *ParserAtt) ParseExpAritmetica() Expressao {
+	expr := p.ParseTermo()
+
 	for p.Atual.Tipo == lexer.TOKEN_SOMA || p.Atual.Tipo == lexer.TOKEN_SUB {
-		if p.Atual.Tipo == lexer.TOKEN_SOMA {
-			p.Avancar()
-			result += p.Termo()
-		} else if p.Atual.Tipo == lexer.TOKEN_SUB {
-			p.Avancar()
-			result -= p.Termo()
+		op := p.Atual.Valor
+		p.Avancar()
+		direita := p.ParseTermo()
+
+		expr = &OperacaoBinaria{
+			Operador: op,
+			Esquerda: expr,
+			Direita:  direita,
 		}
 	}
-	return result
+
+	return expr
 }
 
-func (p *ParserAtt) Termo() int {
-	result := p.Fator()
+func (p *ParserAtt) ParseTermo() Expressao {
+	expr := p.ParseFator()
+
 	for p.Atual.Tipo == lexer.TOKEN_MULT || p.Atual.Tipo == lexer.TOKEN_DIV {
-		if p.Atual.Tipo == lexer.TOKEN_MULT {
-			p.Avancar()
-			result *= p.Fator()
-		} else if p.Atual.Tipo == lexer.TOKEN_DIV {
-			p.Avancar()
-			result /= p.Fator()
+		op := p.Atual.Valor
+		p.Avancar()
+		direita := p.ParseFator()
+
+		expr = &OperacaoBinaria{
+			Operador: op,
+			Esquerda: expr,
+			Direita:  direita,
 		}
 	}
-	return result
+
+	return expr
 }
 
-func (p *ParserAtt) Fator() int {
+func (p *ParserAtt) ParseFator() Expressao {
 	switch p.Atual.Tipo {
 	case lexer.TOKEN_INTEIRO:
 		valor, _ := strconv.Atoi(p.Atual.Valor)
 		p.Esperar(lexer.TOKEN_INTEIRO)
-		return valor
+		return &Constante{Valor: valor}
+
 	case lexer.TOKEN_IDENT:
-		val, ok := p.Variaveis[p.Atual.Valor]
-		if !ok {
-			panic(fmt.Sprintf("Variável '%s' não declarada", p.Atual.Valor))
-		}
+		nome := p.Atual.Valor
 		p.Esperar(lexer.TOKEN_IDENT)
-		return val
+		return &Variavel{Nome: nome}
+
 	case lexer.TOKEN_ABREPAR:
 		p.Esperar(lexer.TOKEN_ABREPAR)
-		valor := p.Expressoes()
+		expr := p.ParseExpressao()
 		p.Esperar(lexer.TOKEN_FECHAPAR)
-		return valor
+		return expr
+
 	default:
 		p.ErroSintatico("INTEIRO | IDENT | (")
-		return 0 //garantia que vai fechar se encontrat o erro
+		return nil
 	}
 }

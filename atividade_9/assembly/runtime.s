@@ -1,49 +1,42 @@
-  #
-  # funcoes de apoio para o codigo compilado
-  #
+.section .data
+buf: .space 20
+nl:  .byte 10
+
+.section .text
+.global imprime_num
+.global sair
 
 imprime_num:
-  xor %r9, %r9            # rcx indice, r9 contagem
-	mov $20, %rcx
-	movb $10, buffer(%rcx)  # \n no final da string
-	dec %rcx
-	inc %r9
+    mov %rax, %rdi
+    mov $buf+19, %rsi
+    mov $10, %rcx
+    mov $0, %rdx
 
-	or %rax, %rax
-	jz printzero_L0
-	mov $10, %r8
+.conv_loop:
+    xor %rdx, %rdx
+    div %rcx
+    add $48, %rdx
+    dec %rsi
+    mov %dl, (%rsi)
+    test %rax, %rax
+    jnz .conv_loop
 
-loop_L0:
-	cqo
-	idiv %r8	
-	addb $0x30, %dl
-	movb %dl, buffer(%rcx)
-	dec %rcx
-	inc %r9
-	or %rax, %rax
-	jnz loop_L0
-	jmp print_L0
+    mov $1, %rax
+    mov $1, %rdi
+    mov %rsi, %rsi
+    mov $buf+19, %rdx
+    sub %rsi, %rdx
+    syscall
 
-printzero_L0:
-	movb $0x30, buffer(%rcx)
-	dec %rcx
-	inc %r9
+    mov $1, %rax
+    mov $1, %rdi
+    mov $nl, %rsi
+    mov $1, %rdx
+    syscall
 
-print_L0:
-	mov $1, %rax            # sys_write
-	mov $1, %rdi            # stdout
-	mov $buffer, %rsi       # dados
-	inc %rcx
-	add %rcx, %rsi
-	mov %r9, %rdx           # tamanho
-	syscall
-  ret
+    ret
 
 sair:
-  mov $60, %rax 		# sys_exit
-	xor %rdi, %rdi 		# codigo de saida (0)
-	syscall
-
-
-.section .bss
-	.lcomm buffer, 21
+    mov $60, %rax
+    xor %rdi, %rdi
+    syscall

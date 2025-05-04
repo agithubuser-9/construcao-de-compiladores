@@ -39,7 +39,33 @@ func Avaliar(expr parser.Expressao, ctx map[string]int) (int, error) {
 				return 0, fmt.Errorf("divisão por zero")
 			}
 			return esq / dir, nil
+		case ">":
+			if esq > dir {
+				return 1, nil
+			}
+			return 0, nil
+		case "<":
+			if esq < dir {
+				return 1, nil
+			}
+			return 0, nil
+		case "==":
+			if esq == dir {
+				return 1, nil
+			}
+			return 0, nil
+		case ">=":
+			if esq >= dir {
+				return 1, nil
+			}
+			return 0, nil
+		case "<=":
+			if esq <= dir {
+				return 1, nil
+			}
+			return 0, nil
 		}
+
 	}
 	return 0, fmt.Errorf("expressão inválida")
 }
@@ -47,6 +73,7 @@ func Avaliar(expr parser.Expressao, ctx map[string]int) (int, error) {
 func AvaliarPrograma(prog *parser.Programa) (int, error) {
 	ctx := make(map[string]int)
 
+	// Avaliar declarações
 	for _, decl := range prog.Declaracoes {
 		val, err := Avaliar(decl.Expr, ctx)
 		if err != nil {
@@ -55,8 +82,18 @@ func AvaliarPrograma(prog *parser.Programa) (int, error) {
 		ctx[decl.Nome] = val
 	}
 
-	// Avaliar a expressão final
-	return Avaliar(prog.ExprFinal, ctx)
+	// Executar comandos
+	for _, cmd := range prog.Comandos {
+		val, retorno, err := ExecutarComando(cmd, ctx)
+		if err != nil {
+			return 0, err
+		}
+		if retorno {
+			return val, nil
+		}
+	}
+
+	return 0, fmt.Errorf("programa não possui comando return")
 }
 
 // Função para imprimir a árvore sintática (em formato "parenthesizado" ).
@@ -71,5 +108,71 @@ func Imprimir(expr parser.Expressao) string {
 		return fmt.Sprintf("(%s %s %s)", Imprimir(e.Esquerda), e.Operador, Imprimir(e.Direita))
 	default:
 		return ""
+	}
+}
+
+func ExecutarComando(cmd parser.Comando, ctx map[string]int) (int, bool, error) {
+	switch c := cmd.(type) {
+
+	case *parser.Atribuicao:
+		val, err := Avaliar(c.Expr, ctx)
+		if err != nil {
+			return 0, false, err
+		}
+		ctx[c.Nome] = val
+		return 0, false, nil
+
+	case *parser.Se:
+		cond, err := Avaliar(c.Condicao, ctx)
+		if err != nil {
+			return 0, false, err
+		}
+		if cond != 0 {
+			return ExecutarComando(c.Entao, ctx)
+		} else if c.Senao != nil {
+			return ExecutarComando(c.Senao, ctx)
+		}
+		return 0, false, nil
+
+	case *parser.Enquanto:
+		for {
+			cond, err := Avaliar(c.Condicao, ctx)
+			if err != nil {
+				return 0, false, err
+			}
+			if cond == 0 {
+				break
+			}
+			val, retorno, err := ExecutarComando(c.Corpo, ctx)
+			if err != nil {
+				return 0, false, err
+			}
+			if retorno {
+				return val, true, nil
+			}
+		}
+		return 0, false, nil
+
+	case *parser.Sequencia:
+		for _, sub := range c.Comandos {
+			val, retorno, err := ExecutarComando(sub, ctx)
+			if err != nil {
+				return 0, false, err
+			}
+			if retorno {
+				return val, true, nil
+			}
+		}
+		return 0, false, nil
+
+	case *parser.Retorno:
+		val, err := Avaliar(c.Expr, ctx)
+		if err != nil {
+			return 0, false, err
+		}
+		return val, true, nil
+
+	default:
+		return 0, false, fmt.Errorf("comando desconhecido")
 	}
 }
