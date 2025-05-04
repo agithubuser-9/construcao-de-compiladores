@@ -175,7 +175,7 @@ func (p *AnalisadorSintatico) analisarDeclaracao(tabela map[string]bool) (*Decla
 
 	p.avancaToken(lexer.TOKEN_IDENT)
 
-	if err := p.avancaToken(lexer.TOKEN_ATRIBUICAO); err != nil {
+	if err := p.avancaToken(lexer.TOKEN_IGUAL); err != nil {
 		return nil, err
 	}
 
